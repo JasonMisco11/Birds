@@ -1,56 +1,125 @@
-import React from "react";
-import { Bird } from "./../src/types";
-import { api } from './../src/api';
+import React, { useEffect, useState } from "react";
+import { Bird } from "../src/types";
+import { api } from "../src/api";
+import BirdDetailModal from "./BirdDetailModal";
+import EditBirdModal from "./EditBirdModal";
+
 type Props = {
   birds: Bird[];
-  loading: boolean;
-  onView: (b: Bird) => void;
-  onEdit: (b: Bird) => void;
-  onDeleted: (id: string) => void;
+  onSelect: (bird: Bird) => void;
+  onEdit: (bird: Bird) => void;
+  onDelete: (id: string) => void;
 };
 
-export default function BirdTable({ birds, loading, onView, onEdit, onDeleted }: Props) {
-  async function handleDelete(id: string) {
-    if (!confirm("Delete this bird?")) return;
+
+export default function BirdTable() {
+  const [birds, setBirds] = useState<Bird[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<Bird | null>(null);
+  const [editing, setEditing] = useState<Bird | null>(null);
+
+  async function fetchBirds() {
     try {
-      await api.deleteBird(id);
-      onDeleted(id);
+      setLoading(true);
+      const data = await api.listBirds();
+      setBirds(data);
     } catch (err) {
-      alert("Delete failed");
-      console.error(err);
+      console.error("Failed to load birds:", err);
+    } finally {
+      setLoading(false);
     }
   }
 
-  if (loading) return <div>Loading...</div>;
+  useEffect(() => {
+    fetchBirds();
+  }, []);
+
+  async function handleDelete(id: string) {
+    if (!confirm("Delete this bird?")) return;
+    await api.deleteBird(id);
+    fetchBirds();
+  }
+
+  if (loading) return <p className="text-center mt-10">Loading...</p>;
 
   return (
-    <div className="overflow-x-auto bg-white rounded shadow">
-      <table className="min-w-full">
-        <thead className="bg-slate-100">
-          <tr>
-            <th className="p-2 text-left">Common</th>
-            <th className="p-2 text-left">Scientific</th>
-            <th className="p-2 text-left">Habitat</th>
-            <th className="p-2 text-left">Size</th>
-            <th className="p-2">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {birds.map((b) => (
-            <tr key={b._id} className="border-t">
-              <td className="p-2">{b.commonName}</td>
-              <td className="p-2 italic">{b.scientificName}</td>
-              <td className="p-2">{b.habitat.join(", ")}</td>
-              <td className="p-2">{b.appearance.size}</td>
-              <td className="p-2 flex gap-2 justify-center">
-                <button className="px-2 py-1 rounded border" onClick={() => onView(b)}>View</button>
-                <button className="px-2 py-1 rounded border" onClick={() => onEdit(b)}>Edit</button>
-                <button className="px-2 py-1 rounded bg-red-600 text-white" onClick={() => handleDelete(b._id)}>Delete</button>
-              </td>
+    <div className="p-4 w-full">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-semibold">Bird Records</h2>
+        <button
+          onClick={() => setEditing({} as Bird)}
+          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
+        >
+          + Add Bird
+        </button>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="min-w-full border border-gray-200 text-sm md:text-base">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="p-2 border">Common Name</th>
+              <th className="p-2 border">Scientific Name</th>
+              <th className="p-2 border hidden sm:table-cell">Size</th>
+              <th className="p-2 border hidden md:table-cell">Colors</th>
+              <th className="p-2 border">Actions</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {birds.map((b) => (
+              <tr key={b._id} className="hover:bg-gray-50">
+                <td className="p-2 border">{b.commonName}</td>
+                <td className="p-2 border italic">{b.scientificName}</td>
+                <td className="p-2 border hidden sm:table-cell">{b.appearance.size}</td>
+                <td className="p-2 border hidden md:table-cell">
+                  {b.appearance.color.join(", ")}
+                </td>
+                <td className="p-2 border text-center">
+                  <div className="flex justify-center gap-2 flex-wrap">
+                    <button
+                      onClick={() => setSelected(b)}
+                      className="px-2 py-1 border rounded text-blue-600 hover:bg-blue-50"
+                    >
+                      View
+                    </button>
+                    <button
+                      onClick={() => setEditing(b)}
+                      className="px-2 py-1 border rounded text-yellow-600 hover:bg-yellow-50"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDelete(b._id!)}
+                      className="px-2 py-1 border rounded text-red-600 hover:bg-red-50"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {!birds.length && (
+          <p className="text-center py-6 text-gray-500">No birds found. Add one!</p>
+        )}
+      </div>
+
+      {selected && (
+        <BirdDetailModal bird={selected} onClose={() => setSelected(null)} />
+      )}
+
+      {editing && (
+        <EditBirdModal
+          bird={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            fetchBirds();
+          }}
+        />
+      )}
     </div>
   );
 }

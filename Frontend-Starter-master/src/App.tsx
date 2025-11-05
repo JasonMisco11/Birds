@@ -1,81 +1,83 @@
 import React, { useEffect, useState } from "react";
-import { Bird } from "./types";
-import { api } from "./api";
-import BirdTable from '../components/BirdTable';
+import BirdTable from "../components/BirdTable";
 import BirdDetailModal from "../components/BirdDetailModal";
 import EditBirdModal from "../components/EditBirdModal";
-import Toast from "../components/Toast";
+import { Bird } from "./types"; // <-- Move your Bird interface here
 
-export default function App() {
+const App: React.FC = () => {
   const [birds, setBirds] = useState<Bird[]>([]);
+  const [selectedBird, setSelectedBird] = useState<Bird | null>(null);
+  const [editingBird, setEditingBird] = useState<Bird | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState<Bird | null>(null);
-  const [editing, setEditing] = useState<Bird | null>(null);
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  async function load() {
-    setLoading(true);
-    try {
-      const data = await api.listBirds();
-      setBirds(data);
-    } catch (err) {
-      console.error(err);
-      setToastMsg("Failed to load birds");
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => {
+    fetch("https://birdbackendinterview.onrender.com/bird")
+      .then((res) => res.json())
+      .then((data) => {
+        setBirds(data);
+      })
+      .catch((err) => console.error("Fetch error:", err))
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function handleDelete(id: string) {
+    if (!confirm("Are you sure you want to delete this bird?")) return;
+    await fetch(`https://birdbackendinterview.onrender.com/bird/${id}`, {
+      method: "DELETE",
+    });
+    setBirds((prev) => prev.filter((b) => b._id !== id));
   }
 
-  useEffect(() => { load(); }, []);
+  async function handleSave(updatedBird: Bird) {
+    setEditingBird(null);
+    setBirds((prev) => {
+      const exists = prev.find((b) => b._id === updatedBird._id);
+      return exists
+        ? prev.map((b) => (b._id === updatedBird._id ? updatedBird : b))
+        : [...prev, updatedBird];
+    });
+  }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6">
-      <header className="max-w-5xl mx-auto">
-        <h1 className="text-2xl font-semibold mb-4">Bird Directory</h1>
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4 md:p-8">
+      <header className="w-full max-w-5xl text-center mb-6">
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
+          Bird Records Pp
+        </h1>
+        <p className="text-gray-600 mt-1 text-sm md:text-base">
+          View, edit, and manage bird entries easily.
+        </p>
       </header>
 
-      <main className="max-w-5xl mx-auto">
-        <div className="mb-4 flex justify-end">
-          <button
-            className="px-4 py-2 rounded bg-blue-600 text-white"
-            onClick={() => setEditing({ // empty template for create
-              _id: "",
-              commonName: "",
-              scientificName: "",
-              description: "",
-              habitat: [],
-              appearance: { size: "", color: [] },
-              photos: []
-            })}
-          >
-            Add Bird
-          </button>
-        </div>
-
-        <BirdTable
-          birds={birds}
-          loading={loading}
-          onView={(b) => setSelected(b)}
-          onEdit={(b) => setEditing(b)}
-          onDeleted={(id) => {
-            setBirds((prev) => prev.filter((x) => x._id !== id));
-            setToastMsg("Deleted bird");
-          }}
-        />
+      <main className="w-full max-w-5xl bg-white shadow-md rounded-2xl p-4 md:p-6 overflow-x-auto">
+        {loading ? (
+          <div className="text-center text-gray-500 py-8">Loading...</div>
+        ) : (
+          <BirdTable
+            birds={birds}
+            onSelect={setSelectedBird}
+            onEdit={setEditingBird}
+            onDelete={handleDelete}
+          />
+        )}
       </main>
 
-      <BirdDetailModal bird={selected} onClose={() => setSelected(null)} />
-      <EditBirdModal
-        bird={editing}
-        onClose={() => setEditing(null)}
-        onSaved={async () => {
-          await load();
-          setEditing(null);
-          setToastMsg("Saved bird");
-        }}
-      />
+      {selectedBird && (
+        <BirdDetailModal
+          bird={selectedBird}
+          onClose={() => setSelectedBird(null)}
+        />
+      )}
 
-      <Toast message={toastMsg} onClose={() => setToastMsg(null)} />
+      {editingBird && (
+        <EditBirdModal
+          bird={editingBird}
+          onClose={() => setEditingBird(null)}
+          onSaved={handleSave}
+        />
+      )}
     </div>
   );
-}
+};
+
+export default App;

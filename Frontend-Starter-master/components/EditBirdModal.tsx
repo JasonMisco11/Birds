@@ -5,8 +5,10 @@ import { api } from './../src/api';
 type Props = {
   bird: Bird | null;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (bird: Bird) => void;
 };
+onSaved(form);
+
 
 export default function EditBirdModal({ bird, onClose, onSaved }: Props) {
   const [form, setForm] = useState<Bird | null>(bird);
