@@ -1,52 +1,73 @@
-import React, { useEffect, useState } from "react";
-import BirdTable from "../components/BirdTable";
-import BirdDetailModal from "../components/BirdDetailModal";
-import EditBirdModal from "../components/EditBirdModal";
-import { Bird } from "./types"; // <-- Move your Bird interface here
+import React, { useState, useEffect } from 'react';
+import { Plus } from 'lucide-react';
+import { Bird, BirdInput } from './types'; // ✅ uses types.ts
+import { api } from '../src/api';
+import { BirdTable } from '../components/BirdTable';
+import BirdDetailModal from '../components/BirdDetailModal';
+import { EditBirdModal } from '../components/EditBirdModal';
+import { Toast } from '../components/Toast';
 
-const App: React.FC = () => {
+export default function App() {
   const [birds, setBirds] = useState<Bird[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedBird, setSelectedBird] = useState<Bird | null>(null);
   const [editingBird, setEditingBird] = useState<Bird | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const loadBirds = async () => {
+    try {
+      setLoading(true);
+      const data = await api.getAllBirds();
+      setBirds(data);
+    } catch (error) {
+      alert('Failed to load birds');
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    fetch("https://birdbackendinterview.onrender.com/bird")
-      .then((res) => res.json())
-      .then((data) => {
-        setBirds(data);
-      })
-      .catch((err) => console.error("Fetch error:", err))
-      .finally(() => setLoading(false));
+    loadBirds();
   }, []);
 
-  async function handleDelete(id: string) {
-    if (!confirm("Are you sure you want to delete this bird?")) return;
-    await fetch(`https://birdbackendinterview.onrender.com/bird/${id}`, {
-      method: "DELETE",
-    });
-    setBirds((prev) => prev.filter((b) => b._id !== id));
-  }
+  const handleCreate = async (bird: BirdInput) => {
+    await api.createBird(bird);
+    await loadBirds();
+    setShowCreateModal(false);
+    setToast('Bird created successfully!');
+  };
 
-  async function handleSave(updatedBird: Bird) {
-    setEditingBird(null);
-    setBirds((prev) => {
-      const exists = prev.find((b) => b._id === updatedBird._id);
-      return exists
-        ? prev.map((b) => (b._id === updatedBird._id ? updatedBird : b))
-        : [...prev, updatedBird];
-    });
-  }
+  const handleUpdate = async (bird: BirdInput) => {
+    if (editingBird) {
+      await api.updateBird(editingBird._id, bird);
+      await loadBirds();
+      setEditingBird(null);
+      setToast('Bird updated successfully!');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (window.confirm('Are you sure you want to delete this bird?')) {
+      await api.deleteBird(id);
+      await loadBirds();
+      setToast('Bird deleted successfully!');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4 md:p-8">
-      <header className="w-full max-w-5xl text-center mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
-          Bird Records Pp
+      <header className="w-full max-w-5xl flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-800 text-center sm:text-left">
+          Bird Records Dashboard
         </h1>
-        <p className="text-gray-600 mt-1 text-sm md:text-base">
-          View, edit, and manage bird entries easily.
-        </p>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+        >
+          <Plus size={18} /> Add Bird
+        </button>
       </header>
 
       <main className="w-full max-w-5xl bg-white shadow-md rounded-2xl p-4 md:p-6 overflow-x-auto">
@@ -54,30 +75,35 @@ const App: React.FC = () => {
           <div className="text-center text-gray-500 py-8">Loading...</div>
         ) : (
           <BirdTable
-            birds={birds}
-            onSelect={setSelectedBird}
-            onEdit={setEditingBird}
-            onDelete={handleDelete}
-          />
+                          birds={birds}
+                          onSelect={setSelectedBird}
+                          onEdit={setEditingBird}
+                          onDelete={handleDelete} loading={false} onView={function (bird: Bird): void {
+                              throw new Error('Function not implemented.');
+                          } }          />
         )}
       </main>
 
       {selectedBird && (
-        <BirdDetailModal
-          bird={selectedBird}
-          onClose={() => setSelectedBird(null)}
-        />
+        <BirdDetailModal bird={selectedBird} onClose={() => setSelectedBird(null)} />
       )}
 
       {editingBird && (
         <EditBirdModal
-          bird={editingBird}
+          initialData={editingBird}
+          onSubmit={handleUpdate}
           onClose={() => setEditingBird(null)}
-          onSaved={handleSave}
         />
       )}
+
+      {showCreateModal && (
+        <EditBirdModal
+          onSubmit={handleCreate}
+          onClose={() => setShowCreateModal(false)}
+        />
+      )}
+
+      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
     </div>
   );
-};
-
-export default App;
+}
